@@ -135,7 +135,6 @@ export default function TaskForm() {
                         value={form.dueDate}
                         onChange={handleDateChange}
                         className="datePicker"
-                        name="datePicker"
                     />
                 </LocalizationProvider>
             </div>
