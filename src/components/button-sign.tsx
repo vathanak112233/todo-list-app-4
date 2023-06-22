@@ -2,7 +2,7 @@ import { Button } from "@mui/material";
 import { signIn, signOut, useSession } from "next-auth/react";
 
 export function ButtonSign() {
-    const { data: session } = useSession();
+    const { data: session } : any = useSession();
 
     if (session && session.user) {
         return (
