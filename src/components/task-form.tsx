@@ -1,38 +1,71 @@
-import { TextField, FormControl, InputLabel, Select, MenuItem, Button } from "@mui/material";
-import { useRouter } from "next/router";
-import { useState, useEffect } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Button, FormControl, FormHelperText, Grid, InputLabel, MenuItem, Select, TextField, Typography } from "@mui/material";
+import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
-import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
-import { DatePicker } from "@mui/x-date-pickers/DatePicker";
-import styles from "./../styles/Home.module.css";
 import dayjs from "dayjs";
 import { getSession } from "next-auth/react";
+import { useRouter } from "next/router";
+import { useEffect, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { z } from "zod";
+import { DevTool } from "@hookform/devtools";
 
+type FormValue = {
+    title: string;
+    description: string;
+    dueDate: any;
+    priority: string;
+    status: string;
+}
 export default function TaskForm() {
+    const schema = z.object({
+        title: z.string().refine((value) => value.trim() !== "", {
+            message: "Field title is require"
+        }),
+        description: z.string().refine((value) => value.trim() !== "", {
+            message: "Field description is require"
+        }),
+        dueDate: z.string().refine((value) => value.trim() !== "", {
+            message: "Field due date is require"
+        }),
+        priority: z.string().refine((value) => value.trim() !== "", {
+            message: "Field priority is require"
+        }),
+        status: z.string().refine((value) => value.trim() !== "", {
+            message: "Field status is require"
+        })
+    })
+
     const [accessToken, setAccessToken] = useState("");
-    const [userId, setUerId] = useState(null);
+    const [userId, setUerId] = useState<number>(0);
 
     const router = useRouter();
     const taskId: number = Number(router.query.id);
 
-    const [form, setForm] = useState({
-        title: "",
-        description: "",
-        dueDate: null,
-        priority: "",
-        status: "",
+    const form = useForm<FormValue>({
+        defaultValues: {
+            title: "",
+            description: "",
+            status: "",
+            priority: "",
+            dueDate: ""
+        },
+        resolver: zodResolver(schema)
     });
 
-    const handleSubmit = async (event: { preventDefault: () => void; }) => {
-        event.preventDefault();
+    const { control, formState, setValue, handleSubmit } = form;
+    const { isValid, isSubmitSuccessful } = formState;
+
+    const onSubmit = (data: FormValue) => {
+        if (!isValid) { return }
         if (taskId) {
-            updateTask(taskId);
+            updateTask(taskId, data);
             return;
         }
-        saveTask();
+        saveTask(data, userId);
     };
 
-    const saveTask = async () => {
+    const saveTask = async (payload: FormValue, userId: number) => {
         try {
             const response = await fetch("/api/task", {
                 method: "POST",
@@ -40,20 +73,17 @@ export default function TaskForm() {
                     "Content-Type": "application/json",
                     authorization: `${accessToken}`,
                 },
-                body: JSON.stringify({ ...form, userId: userId }),
+                body: JSON.stringify({ ...payload, userId: userId }),
             });
-            const formValue = await response.json();
             if (response.status === 200) {
                 alert("Task added successfully");
-                setForm(formValue);
-                router.push("/task");
             }
         } catch (error) {
             alert(error);
         }
     };
 
-    const updateTask = async (id: number) => {
+    const updateTask = async (id: number, payload: FormValue) => {
         try {
             const response = await fetch(`/api/task/${id}`, {
                 method: "PUT",
@@ -61,29 +91,16 @@ export default function TaskForm() {
                     "Content-Type": "application/json",
                     authorization: `${accessToken}`,
                 },
-                body: JSON.stringify({ ...form, userId: userId }),
+                body: JSON.stringify({ ...payload, userId: userId }),
             });
-            const formValue = await response.json();
             if (response.status === 200) {
                 alert("Task updated successfully");
-                router.push("/task");
             }
         } catch (error) {
             alert(error);
         }
     };
 
-    const handleInputChange = (event: { target: { name: any; value: any; }; }) => {
-        const { name, value } = event.target;
-        setForm({ ...form, [name]: value });
-    };
-
-    const handleDateChange = (date: any) => {
-        setForm((prevData) => ({
-            ...prevData,
-            dueDate: date.toISOString(),
-        }));
-    };
 
     const fetchSession = async () => {
         const session: any = await getSession();
@@ -98,7 +115,9 @@ export default function TaskForm() {
     }, []);
 
     useEffect(() => {
-        if (!taskId) { return; }
+        if (!taskId || !accessToken) {
+            return
+        }
         const getTaskById = async (id: number) => {
             try {
                 const response = await fetch(`/api/task/${id}`, {
@@ -107,91 +126,177 @@ export default function TaskForm() {
                     },
                 });
                 const formValue = await response.json();
-                setForm({ ...formValue, dueDate: dayjs(formValue.dueDate) })
+                setValue("title", formValue?.title);
+                setValue("dueDate", dayjs(formValue?.dueDate));
+                setValue("priority", formValue?.priority);
+                setValue("status", formValue?.status);
+                setValue("description", formValue?.description);
             } catch (error) {
                 alert(error);
             }
-        };
+        }
         getTaskById(taskId);
-    }, [taskId, accessToken]);
+    }, [accessToken, taskId, setValue])
 
+    useEffect(() => {
+        if (isSubmitSuccessful) {
+            router.push('/task')
+        }
+    }, [isSubmitSuccessful, router])
 
-    return (<>
-        <form className="form" onSubmit={handleSubmit}>
-            <h1 className={styles.title}>Task / Add</h1>
-            <div className="column">
-                <TextField
-                    required
-                    label="Title"
-                    name="title"
-                    fullWidth
-                    value={form.title}
-                    onChange={handleInputChange}
-                />
+    const handleDateChange = (date: any) => {
+        if (!date) { return }
+        const dueDate = dayjs(date).toISOString()
+        setValue("dueDate", dueDate, {
+            shouldDirty: true,
+            shouldTouch: true,
+            shouldValidate: true
+        })
+    }
 
-                <LocalizationProvider dateAdapter={AdapterDayjs}>
-                    <DatePicker
-                        label="Due Date"
-                        value={form.dueDate}
-                        onChange={handleDateChange}
-                        className="datePicker"
-                    />
-                </LocalizationProvider>
-            </div>
-            <div className="column">
-                <FormControl fullWidth>
-                    <InputLabel id="demo-simple-select-label">Priority</InputLabel>
-                    <Select
-                        labelId="demo-simple-select-label"
-                        id="demo-simple-select"
-                        label="Priority"
-                        name="priority"
-                        onChange={handleInputChange}
-                        value={form.priority}
-                    >
-                        <MenuItem value={"Urgent"}>Urgent</MenuItem>
-                        <MenuItem value={"High"}>High </MenuItem>
-                        <MenuItem value={"Normal"}>Normal</MenuItem>
-                        <MenuItem value={"Low"}>Low</MenuItem>
-                    </Select>
-                </FormControl>
+    return (
+        <>
+            <form onSubmit={handleSubmit(onSubmit)} noValidate>
+                <Grid container spacing={2}>
+                    <Grid item xs={6}>
+                        <Controller
+                            name="title"
+                            control={control}
+                            render={({ field, fieldState }) => (
+                                <TextField
+                                    {...field}
+                                    label="Title"
+                                    type="text"
+                                    fullWidth
+                                    error={!!fieldState.error}
+                                    helperText={fieldState.error?.message}
+                                    className={fieldState.error ? "errorTextField" : ""}
+                                />
+                            )}
+                        />
+                    </Grid>
+                    <Grid item xs={6}>
+                        <Controller
+                            name="dueDate"
+                            control={control}
+                            render={({ field, fieldState }) => (
+                                <FormControl fullWidth error={!!fieldState.error}>
+                                    <LocalizationProvider dateAdapter={AdapterDayjs}>
+                                        <DatePicker
+                                            {...field}
+                                            label="Due Date"
+                                            value={field.value}
+                                            // onChange={(value: any) => setValue("dueDate", value ? value.toISOString() : "", {
+                                            //     shouldDirty: true,
+                                            //     shouldTouch: true,
+                                            //     shouldValidate: true
+                                            // })}
+                                            onChange={handleDateChange}
+                                            slotProps={{
+                                                textField: {
+                                                    helperText: fieldState.error?.message,
+                                                    error: !!fieldState.error
+                                                }
+                                            }}
+                                        />
 
-                <FormControl fullWidth>
-                    <InputLabel id="demo-simple-select-label">Status</InputLabel>
-                    <Select
-                        labelId="demo-simple-select-standard-label"
-                        id="demo-simple-select-standard"
-                        label="Status"
-                        name="status"
-                        onChange={handleInputChange}
-                        value={form.status}
-                        fullWidth
-                    >
-                        <MenuItem value={"Open"}>Open</MenuItem>
-                        <MenuItem value={"In Progress"}>In Progress</MenuItem>
-                        <MenuItem value={"Pending"}>Pending</MenuItem>
-                        <MenuItem value={"Done"}>Done</MenuItem>
-                    </Select>
-                </FormControl>
-            </div>
-            <TextField
-                multiline
-                rows={4}
-                maxRows={4}
-                name="description"
-                label="Description"
-                value={form.description}
-                onChange={handleInputChange}
-            />
+                                    </LocalizationProvider>
+                                    {/* <Typography className="dateErrorTextField" variant="body2" color="error">
+                                        {fieldState.error?.message}
+                                    </Typography> */}
+                                </FormControl>
+                            )}
+                        />
+                    </Grid>
+                    <Grid item xs={6}>
+                        <Controller
+                            name="priority"
+                            control={control}
+                            render={({ field, fieldState }) => (
+                                <FormControl fullWidth>
+                                    <InputLabel>Priority</InputLabel>
+                                    <Select
+                                        {...field}
+                                        label="Priority"
+                                        type="text"
+                                        error={!!fieldState.error}
+                                    >
+                                        <MenuItem value="urgent">Urgent</MenuItem>
+                                        <MenuItem value="high">High</MenuItem>
+                                        <MenuItem value="low">Low</MenuItem>
+                                        <MenuItem value="normal">Normal</MenuItem>
+                                    </Select>
+                                    <FormHelperText className={fieldState.error ? "errorHelperText" : ""} error>
+                                        {fieldState.error?.message}
+                                    </FormHelperText>
+                                </FormControl>
 
-            <div className="action">
-                <Button variant="contained" color="error" href="/task" type="button">
-                    Cancel
-                </Button>
-                <Button variant="contained" color="primary" type="submit">
-                    {taskId ? "Update" : "Save"}
-                </Button>
-            </div>
-        </form>
-    </>)
+                            )}
+                        />
+                    </Grid>
+                    <Grid item xs={6}>
+                        <Controller
+                            name="status"
+                            control={control}
+                            render={({ field, fieldState }) => (
+                                <FormControl fullWidth>
+                                    <InputLabel>Status</InputLabel>
+                                    <Select
+                                        {...field}
+                                        label="Status"
+                                        type="text"
+                                        error={!!fieldState.error}
+                                    >
+                                        <MenuItem value="Open">Open</MenuItem>
+                                        <MenuItem value="In Progress">In Progress</MenuItem>
+                                        <MenuItem value="Pending">Pending</MenuItem>
+                                        <MenuItem value="Done">Done</MenuItem>
+                                    </Select>
+                                    <FormHelperText className={fieldState.error ? "errorHelperText" : ""} error>
+                                        {fieldState.error?.message}
+                                    </FormHelperText>
+                                </FormControl>
+
+                            )}
+                        />
+                    </Grid>
+
+                    <Grid item xs={12}>
+                        <Controller
+                            name="description"
+                            control={control}
+                            render={({ field, fieldState }) => (
+                                <TextField
+                                    {...field}
+                                    type="text"
+                                    error={!!fieldState.error}
+                                    helperText={fieldState.error?.message}
+                                    className={fieldState.error ? "errorTextField" : ""}
+                                    label="Description"
+                                    fullWidth
+                                    multiline
+                                    rows={4}
+                                />
+                            )}
+                        />
+                    </Grid>
+
+                    <Grid item xs={12}
+                        container
+                        direction="row"
+                        justifyContent="flex-start"
+                        alignItems="flex-center"
+                        gap={2}>
+                        <Button variant="contained" color="error" href="/task" type="button">
+                            Cancel
+                        </Button>
+                        <Button variant="contained" color="primary" type="submit">
+                            {taskId ? "Update" : "Save"}
+                        </Button>
+                    </Grid>
+                </Grid>
+            </form>
+            {/* <DevTool control={control}></DevTool> */}
+        </>
+    )
 }
