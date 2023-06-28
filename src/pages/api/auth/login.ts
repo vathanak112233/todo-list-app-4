@@ -23,7 +23,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const { password, ...userWithoutPass } = user;
         const result = {
             ...userWithoutPass,
-            accessToken: jwt.sign(user, secret_key!, { expiresIn: '1h' })
+            accessToken: jwt.sign(user, secret_key!, { expiresIn: '1days' })
         };
         return res.json(result)
     } else return res.json(null)
