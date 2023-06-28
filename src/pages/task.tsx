@@ -76,8 +76,6 @@ export default function Task() {
     }, [accessToken]);
 
     return (<>
-        <h1 className={styles.title}>Task List Management</h1>
-
         <div className="header-action">
             <div>
                 <Button
