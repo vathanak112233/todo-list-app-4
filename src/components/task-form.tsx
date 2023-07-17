@@ -1,284 +1,90 @@
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Button, FormControl, FormHelperText, Grid, InputLabel, MenuItem, Select, TextField, Typography } from "@mui/material";
-import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
-import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
-import dayjs from "dayjs";
-import { getSession } from "next-auth/react";
-import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
-import { z } from "zod";
+import { Button, Grid } from "@mui/material";
+import { FormProvider, useForm } from "react-hook-form";
 import { DevTool } from "@hookform/devtools";
+import SelectInput from "./comons/select-input";
+import { StatusOptions, taskValidateField } from "@/schema/create";
+import DatePickerInput from "./comons/data-picker-input";
+import TextFieldInput from "./comons/text-field-input";
+import TextAreaFieldInput from "./comons/text-area-field-input";
+import { createSchema, resolver } from "@/utitls/validate-factory";
+import { z } from "zod"
+import { useMutation } from "react-query";
+import { POST, PUT } from "@/utitls/fetch-api";
+import { ApiEndpoint } from "@/utitls/api-endpoint";
+import { Task } from "@/models/task";
+import { useRouter } from "next/router";
 
-type FormValue = {
-    title: string;
-    description: string;
-    dueDate: any;
-    priority: string;
-    status: string;
+// const schema = z.object({
+//     a: z.string()
+// })
+// type TaskFormValue = z.infer<typeof schema>
+
+type TaskFormProps = {
+    initialData?: Task,
+    taskId?: number
 }
-export default function TaskForm() {
-    const schema = z.object({
-        title: z.string().refine((value) => value.trim() !== "", {
-            message: "Field title is require"
-        }),
-        description: z.string().refine((value) => value.trim() !== "", {
-            message: "Field description is require"
-        }),
-        dueDate: z.string().refine((value) => value.trim() !== "", {
-            message: "Field due date is require"
-        }),
-        priority: z.string().refine((value) => value.trim() !== "", {
-            message: "Field priority is require"
-        }),
-        status: z.string().refine((value) => value.trim() !== "", {
-            message: "Field status is require"
-        })
-    })
 
-    const [accessToken, setAccessToken] = useState("");
-    const [userId, setUerId] = useState<number>(0);
-
+export default function TaskForm({ initialData, taskId }: TaskFormProps) {
     const router = useRouter();
-    const taskId: number = Number(router.query.id);
 
-    const form = useForm<FormValue>({
-        defaultValues: {
-            title: "",
-            description: "",
-            status: "",
-            priority: "",
-            dueDate: ""
-        },
-        resolver: zodResolver(schema)
+    const schema = createSchema<Task>(taskValidateField);
+    const methods = useForm<Task>({
+        defaultValues: initialData,
+        resolver: (value) => resolver(schema, value)
     });
 
-    const { control, formState, setValue, handleSubmit } = form;
-    const { isValid, isSubmitSuccessful } = formState;
+    const { handleSubmit } = methods;
 
-    const onSubmit = (data: FormValue) => {
-        if (!isValid) { return }
-        if (taskId) {
-            updateTask(taskId, data);
-            return;
+    const mutation = useMutation((body: any) => {
+        if (initialData && taskId) {
+            return PUT(ApiEndpoint.TASK, taskId, body)
+        } else {
+            return POST(ApiEndpoint.TASK, body)
         }
-        saveTask(data, userId);
+    }, {
+        onSuccess: () => router.push('/task')
+    })
+
+    const onSubmit = (data: any) => {
+        mutation.mutate(data)
     };
-
-    const saveTask = async (payload: FormValue, userId: number) => {
-        try {
-            const response = await fetch("/api/task", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    authorization: `${accessToken}`,
-                },
-                body: JSON.stringify({ ...payload, userId: userId }),
-            });
-            if (response.status === 200) {
-                alert("Task added successfully");
-            }
-        } catch (error) {
-            alert(error);
-        }
-    };
-
-    const updateTask = async (id: number, payload: FormValue) => {
-        try {
-            const response = await fetch(`/api/task/${id}`, {
-                method: "PUT",
-                headers: {
-                    "Content-Type": "application/json",
-                    authorization: `${accessToken}`,
-                },
-                body: JSON.stringify({ ...payload, userId: userId }),
-            });
-            if (response.status === 200) {
-                alert("Task updated successfully");
-            }
-        } catch (error) {
-            alert(error);
-        }
-    };
-
-
-    const fetchSession = async () => {
-        const session: any = await getSession();
-        if (session) {
-            setAccessToken(session.user.accessToken);
-            setUerId(session.user.id);
-        }
-    };
-
-    useEffect(() => {
-        fetchSession();
-    }, []);
-
-    useEffect(() => {
-        if (!taskId || !accessToken) {
-            return
-        }
-        const getTaskById = async (id: number) => {
-            try {
-                const response = await fetch(`/api/task/${id}`, {
-                    headers: {
-                        authorization: `${accessToken}`,
-                    },
-                });
-                const formValue = await response.json();
-                setValue("title", formValue?.title);
-                setValue("dueDate", dayjs(formValue?.dueDate));
-                setValue("priority", formValue?.priority);
-                setValue("status", formValue?.status);
-                setValue("description", formValue?.description);
-            } catch (error) {
-                alert(error);
-            }
-        }
-        getTaskById(taskId);
-    }, [accessToken, taskId, setValue])
-
-    useEffect(() => {
-        if (isSubmitSuccessful) {
-            router.push('/task')
-        }
-    }, [isSubmitSuccessful, router])
-
-    const handleDateChange = (date: any) => {
-        if (!date) { return }
-        const dueDate = dayjs(date).toISOString()
-        setValue("dueDate", dueDate, {
-            shouldDirty: true,
-            shouldTouch: true,
-            shouldValidate: true
-        })
-    }
 
     return (
-        <>
+        <FormProvider {...methods}>
             <form onSubmit={handleSubmit(onSubmit)} noValidate>
                 <Grid container spacing={2}>
                     <Grid item xs={6}>
-                        <Controller
+                        <TextFieldInput
                             name="title"
-                            control={control}
-                            render={({ field, fieldState }) => (
-                                <TextField
-                                    {...field}
-                                    label="Title"
-                                    type="text"
-                                    fullWidth
-                                    error={!!fieldState.error}
-                                    helperText={fieldState.error?.message}
-                                    className={fieldState.error ? "errorTextField" : ""}
-                                />
-                            )}
-                        />
+                            placeholder="Title" />
                     </Grid>
                     <Grid item xs={6}>
-                        <Controller
+                        <DatePickerInput
                             name="dueDate"
-                            control={control}
-                            render={({ field, fieldState }) => (
-                                <FormControl fullWidth error={!!fieldState.error}>
-                                    <LocalizationProvider dateAdapter={AdapterDayjs}>
-                                        <DatePicker
-                                            {...field}
-                                            label="Due Date"
-                                            value={field.value}
-                                            // onChange={(value: any) => setValue("dueDate", value ? value.toISOString() : "", {
-                                            //     shouldDirty: true,
-                                            //     shouldTouch: true,
-                                            //     shouldValidate: true
-                                            // })}
-                                            onChange={handleDateChange}
-                                            slotProps={{
-                                                textField: {
-                                                    helperText: fieldState.error?.message,
-                                                    error: !!fieldState.error
-                                                }
-                                            }}
-                                        />
-
-                                    </LocalizationProvider>
-                                    {/* <Typography className="dateErrorTextField" variant="body2" color="error">
-                                        {fieldState.error?.message}
-                                    </Typography> */}
-                                </FormControl>
-                            )}
-                        />
+                            placeholder="Due Date" />
                     </Grid>
                     <Grid item xs={6}>
-                        <Controller
+                        <SelectInput
                             name="priority"
-                            control={control}
-                            render={({ field, fieldState }) => (
-                                <FormControl fullWidth>
-                                    <InputLabel>Priority</InputLabel>
-                                    <Select
-                                        {...field}
-                                        label="Priority"
-                                        type="text"
-                                        error={!!fieldState.error}
-                                    >
-                                        <MenuItem value="urgent">Urgent</MenuItem>
-                                        <MenuItem value="high">High</MenuItem>
-                                        <MenuItem value="low">Low</MenuItem>
-                                        <MenuItem value="normal">Normal</MenuItem>
-                                    </Select>
-                                    <FormHelperText className={fieldState.error ? "errorHelperText" : ""} error>
-                                        {fieldState.error?.message}
-                                    </FormHelperText>
-                                </FormControl>
-
-                            )}
+                            placeholder="Priority"
+                            fieldLabel="label"
+                            fieldValue="value"
+                            apiEndPoint="/api/priority/list"
                         />
                     </Grid>
                     <Grid item xs={6}>
-                        <Controller
+                        <SelectInput
                             name="status"
-                            control={control}
-                            render={({ field, fieldState }) => (
-                                <FormControl fullWidth>
-                                    <InputLabel>Status</InputLabel>
-                                    <Select
-                                        {...field}
-                                        label="Status"
-                                        type="text"
-                                        error={!!fieldState.error}
-                                    >
-                                        <MenuItem value="Open">Open</MenuItem>
-                                        <MenuItem value="In Progress">In Progress</MenuItem>
-                                        <MenuItem value="Pending">Pending</MenuItem>
-                                        <MenuItem value="Done">Done</MenuItem>
-                                    </Select>
-                                    <FormHelperText className={fieldState.error ? "errorHelperText" : ""} error>
-                                        {fieldState.error?.message}
-                                    </FormHelperText>
-                                </FormControl>
-
-                            )}
+                            placeholder="Status"
+                            fieldLabel="label"
+                            fieldValue="value"
+                            options={StatusOptions}
                         />
                     </Grid>
-
                     <Grid item xs={12}>
-                        <Controller
+                        <TextAreaFieldInput
                             name="description"
-                            control={control}
-                            render={({ field, fieldState }) => (
-                                <TextField
-                                    {...field}
-                                    type="text"
-                                    error={!!fieldState.error}
-                                    helperText={fieldState.error?.message}
-                                    className={fieldState.error ? "errorTextField" : ""}
-                                    label="Description"
-                                    fullWidth
-                                    multiline
-                                    rows={4}
-                                />
-                            )}
-                        />
+                            placeholder="Description" />
                     </Grid>
 
                     <Grid item xs={12}
@@ -297,6 +103,6 @@ export default function TaskForm() {
                 </Grid>
             </form>
             {/* <DevTool control={control}></DevTool> */}
-        </>
+        </FormProvider>
     )
 }

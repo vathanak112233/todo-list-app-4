@@ -1,16 +1,11 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { PrismaClient } from '@prisma/client'
-import { verifyJwt } from "@/lib/jwt";
+import { ResponseDTO, StatusCode } from "@/utitls/responde-DTO";
 const prisma = new PrismaClient()
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     const id: number = Number(req.query.id);
     const body = await req.body;
-
-    const accessToken = req.headers.authorization;
-    if (!accessToken || !verifyJwt(accessToken)) {
-        return res.json({ error: accessToken });
-    }
 
     if (req.method === "GET") {
         try {
@@ -19,7 +14,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     id: Number(id)
                 }
             })
-            return res.json(task);
+            const responseDTO = new ResponseDTO(task, StatusCode.OK);
+            res.send(responseDTO);
         } catch (error) {
             return res.json(error);
         }

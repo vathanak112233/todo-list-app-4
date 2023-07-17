@@ -8,10 +8,11 @@ import MenuIcon from '@mui/icons-material/Menu';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { ButtonSign } from '@/components/button-sign';
-import ListAltIcon from '@mui/icons-material/ListAlt';
-import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import MiscellaneousServicesIcon from '@mui/icons-material/MiscellaneousServices';
 import LockPersonIcon from '@mui/icons-material/LockPerson';
+import AssignmentIcon from '@mui/icons-material/Assignment';
+import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
+import { QueryClient, QueryClientProvider } from 'react-query';
 
 const drawerWidth = 240;
 
@@ -65,24 +66,30 @@ const DrawerHeader = styled('div')(({ theme }) => ({
 }));
 
 export default function App({ Component, pageProps }: AppProps) {
+  const queryClient = new QueryClient();
+
   const theme = useTheme();
   const [open, setOpen] = React.useState(true);
   const [menus, setMenu] = React.useState([
     {
       label: 'Task',
-      path: '/task'
+      path: '/task',
+      icon: AssignmentIcon
     },
     {
       label: 'Role',
-      path: '/role'
+      path: '/role',
+      icon: ManageAccountsIcon
     },
     {
       label: 'Feature',
-      path: '/feature'
+      path: '/feature',
+      icon: MiscellaneousServicesIcon
     },
     {
       label: 'Permission',
-      path: '/permission'
+      path: '/permission',
+      icon: LockPersonIcon
     }
   ])
 
@@ -145,7 +152,7 @@ export default function App({ Component, pageProps }: AppProps) {
                 <ListItem key={menu.path} disablePadding>
                   <ListItemButton href={menu.path}>
                     <ListItemIcon>
-                      <ListAltIcon />
+                      < menu.icon />
                     </ListItemIcon>
                     <ListItemText primary={menu.label} />
                   </ListItemButton>
@@ -155,7 +162,9 @@ export default function App({ Component, pageProps }: AppProps) {
           </Drawer>
           <Main open={open}>
             <DrawerHeader />
-            <Component {...pageProps} />
+            <QueryClientProvider client={queryClient}>
+              <Component {...pageProps} />
+            </QueryClientProvider>
           </Main>
         </Box>
       </SessionProvider>

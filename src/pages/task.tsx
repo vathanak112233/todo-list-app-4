@@ -1,79 +1,60 @@
-import { Button, TableContainer, Paper, Table, TableHead, TableRow, TableCell, TableBody, IconButton, TableFooter } from "@mui/material";
-import Link from "next/link";
-import styles from "./../styles/Home.module.css";
-import { useEffect, useState } from "react";
+import { Button } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
-import { getSession } from "next-auth/react";
-
-interface Task {
-    id: string;
-    title: string;
-    description: string;
-    dueDate: string;
-    priority: string;
-    status: string;
-    updatedAt: string;
-    userId: number;
-    user: {
-        id: number;
-        username: string;
-    }
-}
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { DELETE, GET } from "@/utitls/fetch-api";
+import { ApiEndpoint } from "@/utitls/api-endpoint";
+import MyTable, { ColumnTable } from "@/components/comons/my-table"
+import { Task } from "@/models/task"
+import { useRouter } from "next/router";
+import { ApiResponse } from "@/utitls/responde-DTO";
 
 export default function Task() {
-    const [rows, setRows] = useState<Task[]>([]);
-    const [accessToken, setAccessToken] = useState<string>("");
+    const queryClient = useQueryClient();
+    const router = useRouter();
 
-    const deleteTask = async (id: any) => {
-        if (!accessToken) { return }
-        try {
-            const response = await fetch(`/api/task/${id}`, {
-                method: "DELETE",
-                headers: {
-                    "Content-Type": "application/json",
-                    authorization: accessToken,
-                },
+    const { data } = useQuery({
+        queryKey: 'get-task',
+        queryFn: () => GET(ApiEndpoint.TASK).then((response: ApiResponse<Task>) => response.data as Task[])
+    })
+    const rows: Task[] = data || [];
+
+    const mutation = useMutation((id: number) =>
+        DELETE(ApiEndpoint.TASK, id).then((response: Task) => response as Task), {
+        onSuccess: (taskDeleted: Task) => {
+            queryClient.setQueryData<Task[]>('get-task', (response) => {
+                return response?.filter(res => res.id !== taskDeleted.id) || [];
             });
-
-            if (response.status === 200) {
-                alert("Do you know what delete task ?");
-                setRows(rows.filter((row) => row.id !== id));
-            }
-        } catch (error) {
-            console.error("Error deleting task:", error);
         }
-    };
+    })
+    const deleteTask = (id: number) => mutation.mutate(id);
 
-    const fetchTasks = async () => {
-        if (!accessToken) { return }
-        try {
-            const response = await fetch("/api/task", {
-                headers: {
-                    authorization: accessToken,
+    const columnsTask: ColumnTable<Task>[] = [
+        { key: "id", label: "ID" },
+        { key: "title", label: "Title" },
+        { key: "description", label: "Description" },
+        { key: "dueDate", label: "Due Date" },
+        { key: "priority", label: "Priority" },
+        { key: "status", label: "Status" },
+        { key: "user.username", label: "Create By" },
+        {
+            key: "action",
+            label: "Action",
+            actions: [
+                {
+                    label: "edit",
+                    icon: <EditIcon fontSize="small" />,
+                    onClick: (task: Task) => router.push(`task/update?id=${task.id}`)
                 },
-            });
-            const data = await response.json();
-            setRows(data);
-        } catch (error) {
-            console.error("Error fetching data:", error);
+                {
+                    label: "delete",
+                    icon: <DeleteIcon fontSize="small" />,
+                    color: "error",
+                    onClick: (task: any) => deleteTask(task.id)
+                }
+            ]
         }
-    };
-
-    const fetchSession = async () => {
-        const session: any = await getSession();
-        if (session) {
-            setAccessToken(session.user?.accessToken);
-        }
-    };
-
-    useEffect(() => {
-        fetchSession();
-    }, []);
-
-    useEffect(() => {
-        fetchTasks();
-    }, [accessToken]);
+    ]
 
     return (<>
         <div className="header-action">
@@ -89,60 +70,8 @@ export default function Task() {
             </div>
         </div>
 
-        <TableContainer component={Paper}>
-            <Table sx={{ minWidth: 650 }} aria-label="simple table">
-                <TableHead>
-                    <TableRow>
-                        <TableCell>Task ID</TableCell>
-                        <TableCell align="right">Title</TableCell>
-                        <TableCell align="right">Description</TableCell>
-                        <TableCell align="right">Due Date</TableCell>
-                        <TableCell align="right">Priority</TableCell>
-                        <TableCell align="right">Status</TableCell>
-                        <TableCell align="right">Create By</TableCell>
-                        <TableCell align="right">Action</TableCell>
-                    </TableRow>
-                </TableHead>
-                <TableBody>
-                    {rows.map((row) => (
-                        <TableRow
-                            key={row.id}
-                            sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
-                        >
-                            <TableCell component="th" scope="row">
-                                {row.id}
-                            </TableCell>
-                            <TableCell align="right">{row.title}</TableCell>
-                            <TableCell align="right">{row?.description}</TableCell>
-                            <TableCell align="right">{row.dueDate}</TableCell>
-                            <TableCell align="right">{row.priority}</TableCell>
-                            <TableCell align="right">{row.status}</TableCell>
-                            <TableCell align="right">{row?.user?.username}</TableCell>
-                            <TableCell align="right">
-                                <Link href={"task/update/" + row.id}>
-                                    <IconButton aria-label="edit" size="small" type="button">
-                                        <EditIcon fontSize="small" />
-                                    </IconButton>
-                                </Link>
-
-                                <IconButton
-                                    aria-label="delete"
-                                    size="small"
-                                    type="button"
-                                    color="error"
-                                    onClick={(e) => deleteTask(row.id)}
-                                >
-                                    <DeleteIcon fontSize="small" />
-                                </IconButton>
-
-                            </TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-                <TableFooter>
-                    <TableRow></TableRow>
-                </TableFooter>
-            </Table>
-        </TableContainer>
+        <MyTable
+            data={rows}
+            columns={columnsTask} />
     </>)
 }

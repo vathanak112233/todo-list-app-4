@@ -19,7 +19,7 @@ model Task {
   status      String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  userId      Int      @default(0)
+  userId      Int
   user        User     @relation(fields: [userId], references: [id])
 }
 
@@ -28,4 +28,10 @@ model User {
   username String @unique()
   password String
   Task     Task[]
+}
+
+model Priority {
+  id    Int    @id @default(autoincrement())
+  label String @unique()
+  value String @unique()
 }

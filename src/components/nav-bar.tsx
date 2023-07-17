@@ -1,5 +1,3 @@
-import Image from "next/image";
-import { ButtonSign } from "./button-sign";
 import React from "react";
 import { Toolbar, IconButton, Typography, Drawer, useTheme, styled, Box, CssBaseline, Divider, List, ListItem, ListItemButton, ListItemIcon, ListItemText } from "@mui/material";
 import MuiAppBar, { AppBarProps as MuiAppBarProps } from '@mui/material/AppBar';
@@ -74,19 +72,6 @@ export function NavBar() {
 
     return (
         <>
-            {/* <nav>
-                <div className="logo">
-                    <Image src="/logo.png" alt="logo" width={64} height={64} />
-                </div>
-                <div className="menu">
-                    <a href="./">Home</a>
-                    <a href="./task">Task</a>
-                </div>
-                <div className="action">
-                    <ButtonSign />
-                </div>
-            </nav> */}
-
             <Box sx={{ display: 'flex' }}>
                 <CssBaseline />
                 <AppBar position="fixed" open={open}>

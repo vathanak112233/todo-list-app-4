@@ -1,14 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { PrismaClient } from '@prisma/client'
-import { verifyJwt } from '@/lib/jwt';
+import { ResponseDTO, StatusCode } from '@/utitls/responde-DTO';
+import getCurrentUser from '@/utitls/auth';
 const prisma = new PrismaClient()
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-    const body = await req.body;
-    const accessToken = req.headers.authorization;
-    if (!accessToken || !verifyJwt(accessToken)) {
-        return new Response(JSON.stringify({ error: accessToken }))
-    }
+const handler = async (req: NextApiRequest, res: NextApiResponse) => {
+    const body = await req.body
 
     if (req.method === 'GET') {
         try {
@@ -22,20 +19,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     }
                 }
             });
-            return res.json(task);
+            const total = await prisma.task.count();
+            const responseDTO = new ResponseDTO(task, StatusCode.OK, total)
+            res.send(responseDTO);
         } catch (error) {
-            return res.json(error)
+            const responseDTO = new ResponseDTO(error, StatusCode.SERVER_ERROR, 0)
+            res.send(responseDTO);
         }
     }
 
     if (req.method === 'POST') {
         try {
+            const currentUser = await getCurrentUser(req, res);
             const task = await prisma.task.create({
-                data: body,
+                data: { ...body, userId: currentUser.id }
             });
-            return res.json(task);
+            const responseDTO = new ResponseDTO(task, StatusCode.OK)
+            res.send(responseDTO);
         } catch (error) {
-            return res.json(error);
+            const responseDTO = new ResponseDTO([], StatusCode.SERVER_ERROR, 0)
+            res.send(responseDTO);
         }
     }
 }
+
+export default handler;

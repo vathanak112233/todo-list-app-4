@@ -16,11 +16,13 @@ export function signJwtAccessToken(payload: JwtPayload, options: SignOption = DE
 
 export function verifyJwt(token: string) {
     try {
-        const secret_key = process.env.SECRET_KEY;
-        const decoded = jwt.verify(token, secret_key!);
-        return decoded as JwtPayload;
+      const secret_key = process.env.SECRET_KEY;
+      const tokenWithoutBearer = token.replace("Bearer ", "");
+      const decoded = jwt.verify(tokenWithoutBearer, secret_key!);
+      return decoded as JwtPayload;
     } catch (error) {
-        console.log(error);
-        return null;
+      console.log(error);
+      return null;
     }
-}
+  }
+  
